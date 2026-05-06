@@ -1,0 +1,36 @@
+name = "ember-mind"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 Database — per-mind, no bleed
+[[d1_databases]]
+binding = "DB"
+database_name = "ember-mind"
+database_id = "your-database-id-here"
+
+# Vectorize Index — dedicated ember index, not shared with any other mind
+[[vectorize]]
+binding = "VECTORS"
+index_name = "ember-mind-vectors"
+
+# Workers AI (embeddings)
+[ai]
+binding = "AI"
+
+# R2 Storage (Ember's vault: long-form memories, journals)
+[[r2_buckets]]
+binding = "VAULT"
+bucket_name = "ember-mind-vault"
+
+# Secrets (set via `wrangler secret put`)
+# MIND_API_KEY — auth for /mcp + REST
+
+[vars]
+CORS_ORIGIN = "*"
+
+[env.dev]
+name = "ember-mind-dev"
+
+[env.production]
+name = "ember-mind"

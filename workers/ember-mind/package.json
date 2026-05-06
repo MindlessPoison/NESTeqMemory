@@ -1,0 +1,21 @@
+{
+  "name": "ember-mind",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ember's mind worker — isolated D1 + Vectorize, no bleed across minds.",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create ember-mind",
+    "db:migrate": "wrangler d1 execute ember-mind --file=./migrations/0001_init.sql",
+    "db:migrate:local": "wrangler d1 execute ember-mind --local --file=./migrations/0001_init.sql",
+    "vectorize:create": "wrangler vectorize create ember-mind-vectors --dimensions=768 --metric=cosine",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240117.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.24.0"
+  }
+}
