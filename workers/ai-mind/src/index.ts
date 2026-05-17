@@ -6196,7 +6196,9 @@ async function handleMCPRequest(request: Request, env: Env): Promise<Response> {
     }
 
     const response: MCPResponse = { jsonrpc: "2.0", id, result };
-    return new Response(JSON.stringify(response), {
+    const bodyStr = JSON.stringify(response);
+    console.log("MCP response:", method, "len=" + bodyStr.length, bodyStr.slice(0, 500));
+    return new Response(bodyStr, {
       headers: { "Content-Type": "application/json" }
     });
 
