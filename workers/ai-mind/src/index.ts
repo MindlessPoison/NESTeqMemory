@@ -5815,6 +5815,7 @@ function checkMcpPathAuth(url: URL, env: Env): boolean {
 async function handleMCPRequest(request: Request, env: Env): Promise<Response> {
   const body = await request.json() as MCPRequest;
   const { method, params = {}, id } = body;
+  console.error("MCP req:", method, "id=" + id, "params=" + JSON.stringify(params).slice(0, 200));
 
   let result: unknown;
 
@@ -6197,7 +6198,7 @@ async function handleMCPRequest(request: Request, env: Env): Promise<Response> {
 
     const response: MCPResponse = { jsonrpc: "2.0", id, result };
     const bodyStr = JSON.stringify(response);
-    console.log("MCP response:", method, "len=" + bodyStr.length, bodyStr.slice(0, 500));
+    console.error("MCP resp:", method, "len=" + bodyStr.length, bodyStr.slice(0, 500));
     return new Response(bodyStr, {
       headers: { "Content-Type": "application/json" }
     });
