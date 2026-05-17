@@ -6389,6 +6389,7 @@ async function handlePetTick(env: Env): Promise<string> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    console.error("FETCH:", request.method, url.pathname, "auth=" + (request.headers.get("Authorization") ? "yes" : "no"));
 
     // CORS headers for Binary Home dashboard
     const corsHeaders = {
