@@ -6201,6 +6201,7 @@ async function handleMCPRequest(request: Request, env: Env): Promise<Response> {
     });
 
   } catch (error) {
+    console.error("MCP tool error:", error instanceof Error ? error.stack : String(error));
     const response: MCPResponse = {
       jsonrpc: "2.0",
       id,
