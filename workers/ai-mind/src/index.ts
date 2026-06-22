@@ -465,9 +465,10 @@ const TOOLS = [
         entity_name: { type: "string" },
         observations: { type: "array", items: { type: "string" } },
         context: { type: "string" },
-        salience: { type: "string" },
+        salience: { type: "string", enum: ["light", "medium", "heavy", "low", "high", "core", "active"], description: "Observation salience, or legacy weight alias. high/core map to heavy." },
         emotion: { type: "string" },
         weight: { type: "string", enum: ["light", "medium", "heavy"] },
+        auto_create_entity: { type: "boolean", description: "For observation writes, create the entity if it does not already exist (default false)" },
         from_entity: { type: "string" },
         to_entity: { type: "string" },
         relation_type: { type: "string" }
@@ -2364,16 +2365,43 @@ async function handleMindContext(env: Env, params: Record<string, unknown>): Pro
 // ENTITY HANDLERS
 // ═══════════════════════════════════════════════════════════════════════════
 
+function normalizeEntityName(params: Record<string, unknown>): string | null {
+  const rawName = params.name ?? params.entity_name;
+  return typeof rawName === "string" && rawName.trim() ? rawName.trim() : null;
+}
+
+function normalizeWeight(params: Record<string, unknown>): 'light' | 'medium' | 'heavy' {
+  const rawWeight = typeof params.weight === "string" ? params.weight.toLowerCase() : "";
+  if (rawWeight === "light" || rawWeight === "medium" || rawWeight === "heavy") {
+    return rawWeight;
+  }
+
+  const rawSalience = typeof params.salience === "string" ? params.salience.toLowerCase() : "";
+  const salienceWeight: Record<string, 'light' | 'medium' | 'heavy'> = {
+    low: "light",
+    light: "light",
+    medium: "medium",
+    high: "heavy",
+    core: "heavy"
+  };
+
+  return salienceWeight[rawSalience] || "medium";
+}
+
 async function handleMindWrite(env: Env, params: Record<string, unknown>): Promise<string> {
   const type = params.type as string;
 
   switch (type) {
     case "entity": {
-      const name = params.name as string;
+      const name = normalizeEntityName(params);
+      if (!name) {
+        return "Entity writes require 'name' or 'entity_name'.";
+      }
+
       const entity_type = (params.entity_type as string) || "concept";
       const observations = (params.observations as string[]) || [];
       const context = (params.context as string) || "default";
-      const weight = (params.weight as string) || "medium";
+      const weight = normalizeWeight(params);
 
       await env.DB.prepare(
         `INSERT OR IGNORE INTO entities (name, entity_type, context) VALUES (?, ?, ?)`
@@ -2416,17 +2444,34 @@ async function handleMindWrite(env: Env, params: Record<string, unknown>): Promi
     }
 
     case "observation": {
-      const entity_name = params.entity_name as string;
+      const entity_name = normalizeEntityName(params);
+      if (!entity_name) {
+        return "Observation writes require 'entity_name' or 'name'.";
+      }
+
       const observations = (params.observations as string[]) || [];
       const context = (params.context as string) || "default";
-      const weight = (params.weight as string) || "medium";
+      const weight = normalizeWeight(params);
 
-      const entity = await env.DB.prepare(
+      let entity = await env.DB.prepare(
         `SELECT id FROM entities WHERE name = ? AND context = ?`
       ).bind(entity_name, context).first();
 
       if (!entity) {
-        return `Entity '${entity_name}' not found in context '${context}'`;
+        if (params.auto_create_entity === true) {
+          await env.DB.prepare(
+            `INSERT OR IGNORE INTO entities (name, entity_type, context) VALUES (?, ?, ?)`
+          ).bind(entity_name, "concept", context).run();
+
+          entity = await env.DB.prepare(
+            `SELECT id FROM entities WHERE name = ? AND context = ?`
+          ).bind(entity_name, context).first();
+        } else {
+          return `Entity '${entity_name}' not found in context '${context}'. Create it first with type: "entity", name: "${entity_name}".`;
+        }
+      }
+      if (!entity) {
+        return `Entity '${entity_name}' could not be created in context '${context}'.`;
       }
 
       const confidence = Math.max(0, Math.min(1, (params.confidence as number) || 0.7));
@@ -5770,6 +5815,7 @@ function checkMcpPathAuth(url: URL, env: Env): boolean {
 async function handleMCPRequest(request: Request, env: Env): Promise<Response> {
   const body = await request.json() as MCPRequest;
   const { method, params = {}, id } = body;
+  console.error("MCP req:", method, "id=" + id, "params=" + JSON.stringify(params).slice(0, 200));
 
   let result: unknown;
 
@@ -6151,11 +6197,14 @@ async function handleMCPRequest(request: Request, env: Env): Promise<Response> {
     }
 
     const response: MCPResponse = { jsonrpc: "2.0", id, result };
-    return new Response(JSON.stringify(response), {
+    const bodyStr = JSON.stringify(response);
+    console.error("MCP resp:", method, "len=" + bodyStr.length, bodyStr.slice(0, 500));
+    return new Response(bodyStr, {
       headers: { "Content-Type": "application/json" }
     });
 
   } catch (error) {
+    console.error("MCP tool error:", error instanceof Error ? error.stack : String(error));
     const response: MCPResponse = {
       jsonrpc: "2.0",
       id,
@@ -6340,6 +6389,7 @@ async function handlePetTick(env: Env): Promise<string> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    console.error("FETCH:", request.method, url.pathname, "auth=" + (request.headers.get("Authorization") ? "yes" : "no"));
 
     // CORS headers for Binary Home dashboard
     const corsHeaders = {
